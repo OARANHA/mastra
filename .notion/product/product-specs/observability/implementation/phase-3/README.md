@@ -1,8 +1,8 @@
 # Phase 3: Logging, Metrics & Scores/Feedback
 
-**Status:** Planning
-**Prerequisites:** Phase 1 (Foundation), Phase 2 (Debug Exporters)
-**Estimated Scope:** LoggerContext, MetricsContext, Score/Feedback APIs implementation
+**Status:** PARTIALLY DONE (PRs 3.1, 3.2, 3.3, 3.5 done; PR 3.4 partial)
+**Prerequisites:** Phase 1 (Foundation) ✅, Phase 2 (Debug Exporters) ✅
+**Scope:** LoggerContext, MetricsContext, Score/Feedback APIs implementation
 
 ---
 
@@ -22,17 +22,26 @@ Phase 3 implements all signal context implementations in `@mastra/observability`
 
 ## Package Change Strategy
 
-| PR | Package | Scope | File |
-|----|---------|-------|------|
-| PR 3.1 | `@mastra/observability` | LoggerContext implementation, mastra.logger | [pr-3.1-logging.md](./pr-3.1-logging.md) |
-| PR 3.2 | `@mastra/observability` | MetricsContext, cardinality, mastra.metrics | [pr-3.2-metrics.md](./pr-3.2-metrics.md) |
-| PR 3.3 | `@mastra/observability` | TracingEvent → MetricEvent auto-extraction | [pr-3.3-auto-extract.md](./pr-3.3-auto-extract.md) |
-| PR 3.4 | `@mastra/observability` | Score/Feedback APIs, Trace class | [pr-3.4-scores-feedback.md](./pr-3.4-scores-feedback.md) |
-| PR 3.5 | `@mastra/observability` | Score/Feedback metric auto-extraction | [pr-3.5-score-feedback-metrics.md](./pr-3.5-score-feedback-metrics.md) |
-
-**Merge order:** 3.1 → 3.2 → 3.3 → 3.4 → 3.5
+| PR | Package | Scope | Status | File |
+|----|---------|-------|--------|------|
+| PR 3.1 | `@mastra/observability` | LoggerContext implementation, mastra.logger | **Done** | [pr-3.1-logging.md](./pr-3.1-logging.md) |
+| PR 3.2 | `@mastra/observability` | MetricsContext, cardinality, mastra.metrics | **Done** | [pr-3.2-metrics.md](./pr-3.2-metrics.md) |
+| PR 3.3 | `@mastra/observability` | TracingEvent → MetricEvent auto-extraction | **Done** | [pr-3.3-auto-extract.md](./pr-3.3-auto-extract.md) |
+| PR 3.4 | `@mastra/observability` | Score/Feedback APIs, Trace class | **Partial** | [pr-3.4-scores-feedback.md](./pr-3.4-scores-feedback.md) |
+| PR 3.5 | `@mastra/observability` | Score/Feedback metric auto-extraction | **Done** | [pr-3.5-score-feedback-metrics.md](./pr-3.5-score-feedback-metrics.md) |
 
 **Changeset:** One changeset per PR
+
+### PR 3.4 Status: Moved to Phase 6+7
+
+**Design decision (2026-03-04):** Scoring is always **post-hoc**. Live spans do NOT have `addScore`/`addFeedback`.
+
+The flow will be:
+1. Execution completes → spans persisted to storage
+2. Eval system pulls `RecordedTrace` from storage → calls `addScore()` → emits `ScoreEvent` through bus → persists
+3. API: `POST /api/scores` → emits `ScoreEvent` through bus → persists
+
+The remaining PR 3.4 work (RecordedSpanImpl, RecordedTraceImpl, DefaultExporter score/feedback handlers) is now part of Phase 6 (storage) and Phase 7 (APIs). The legacy hook system (`createOnScorerHook` / `addScoreToTrace()`) will be removed.
 
 ---
 
@@ -109,26 +118,28 @@ After PR merged:
 
 ## Definition of Done
 
-**Logging:**
-- [ ] LoggerContext implementation complete
-- [ ] Logs emitted from tools/workflows have trace correlation
-- [ ] LogEvent emission to ObservabilityBus working
+**Logging: DONE**
+- [x] LoggerContext implementation complete
+- [x] Logs emitted from tools/workflows have trace correlation
+- [x] LogEvent emission to ObservabilityBus working
 
-**Metrics:**
-- [ ] MetricsContext implementation complete
-- [ ] Auto-extracted metrics flowing from span events
-- [ ] Cardinality protection working
-- [ ] MetricEvent emission to ObservabilityBus working
+**Metrics: DONE**
+- [x] MetricsContext implementation complete
+- [x] Auto-extracted metrics flowing from span events
+- [x] Cardinality protection working
+- [x] MetricEvent emission to ObservabilityBus working
 
-**Scores & Feedback:**
-- [ ] span.addScore() and span.addFeedback() working
-- [ ] trace.addScore() and trace.addFeedback() working
-- [ ] mastra.getTrace() returns Trace with spans
-- [ ] Post-hoc score/feedback attachment working
-- [ ] ScoreEvent/FeedbackEvent emission to ObservabilityBus working
+**Scores & Feedback: MOVED TO PHASE 6+7**
+- [x] ScoreEvent/FeedbackEvent types defined and bus routes them
+- [x] AutoExtractedMetrics processes ScoreEvent/FeedbackEvent → MetricEvent (PR 3.5)
+- [ ] ~~span.addScore() / addFeedback() on live spans~~ — **REMOVED** (scoring is post-hoc only)
+- [ ] RecordedSpanImpl / RecordedTraceImpl with addScore/addFeedback — **moved to Phase 6**
+- [ ] mastra.getTrace() returns RecordedTrace — **moved to Phase 7**
+- [ ] POST /api/scores, POST /api/feedback — **moved to Phase 7**
+- [ ] Remove legacy hook system (`createOnScorerHook` / `addScoreToTrace()`) — **Phase 6+7**
 
 **General:**
-- [ ] All tests pass
+- [x] All tests pass
 - [ ] Documentation updated
 
 ---

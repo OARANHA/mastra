@@ -1,8 +1,8 @@
 # Phase 7: Server & Client APIs
 
-**Status:** Planning
-**Prerequisites:** Phase 6 (Stores & DefaultExporter)
-**Estimated Scope:** HTTP APIs for accessing stored observability data, client SDK
+**Status:** NOT STARTED — UP NEXT (parallel with Phase 6)
+**Prerequisites:** Phase 6 storage schemas (PR 6.0)
+**Scope:** HTTP APIs for accessing stored observability data, client SDK
 
 ---
 
@@ -12,6 +12,8 @@ Phase 7 exposes stored observability data through APIs:
 - Server routes for traces, logs, metrics, scores, feedback
 - client-js SDK updates for accessing observability data
 - CloudExporter for sending data to Mastra Cloud
+
+> **Updated approach (2026-03-04):** This phase will be developed **simultaneously** with Phase 6 (Storage). Both use memory storage initially. Post-hoc `RecordedSpan`/`RecordedTrace` scoring (addScore/addFeedback) fits naturally here as the API is the entry point for UI-driven annotation.
 
 ---
 

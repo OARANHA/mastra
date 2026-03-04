@@ -1,8 +1,9 @@
 # PR 3.4: Scores & Feedback Implementation
 
+**Status:** PARTIALLY DONE — remaining work moved to Phase 6+7
 **Package:** `observability/mastra`
-**Scope:** Span/Trace score/feedback APIs, recorded spans, exporter updates
-**Prerequisites:** PR 3.3 (Auto-Extracted Metrics)
+**Scope:** RecordedSpan/RecordedTrace classes, post-hoc scoring, legacy hook removal
+**Prerequisites:** PR 3.3 (Auto-Extracted Metrics), Phase 6 (Storage)
 
 **Note:** The `ObservabilityBus` was created in Phase 1 and already handles ScoreEvent and FeedbackEvent types.
 
@@ -10,100 +11,48 @@
 
 ---
 
-## 3.4.1 Update Span Implementation
+## What's Done
 
-**File:** `observability/mastra/src/spans/span.ts` (modify)
+- [x] ScoreInput / FeedbackInput types defined in `@mastra/core`
+- [x] ScoreEvent / FeedbackEvent types defined and bus routes them
+- [x] AutoExtractedMetrics processes ScoreEvent → `mastra_scores_total` (PR 3.5)
+- [x] AutoExtractedMetrics processes FeedbackEvent → `mastra_feedback_total` (PR 3.5)
+- [x] TestExporter handles onScoreEvent / onFeedbackEvent
 
-```typescript
-import type { Span, ScoreInput, FeedbackInput, ExportedScore, ExportedFeedback, ScoreEvent, FeedbackEvent } from '@mastra/core';
-import { ObservabilityBus } from '../bus/observability';
+## Design Decision: Post-Hoc Scoring Only (2026-03-04)
 
-export class SpanImpl implements Span {
-  constructor(
-    private data: SpanData,
-    private bus: ObservabilityBus,
-  ) {}
+**Scoring is always post-hoc.** Live spans do NOT have `addScore`/`addFeedback`. Instead:
 
-  // Existing properties and methods...
+1. Execution completes → spans persisted to storage via DefaultExporter
+2. **Eval system** pulls `RecordedTrace` from storage → calls `recordedSpan.addScore()` → emits `ScoreEvent` through bus → persists to storage
+3. **API path**: `POST /api/scores` → also emits `ScoreEvent` through bus → persists to storage
 
-  addScore(score: ScoreInput): void {
-    const exportedScore: ExportedScore = {
-      timestamp: new Date(),
-      traceId: this.traceId,
-      spanId: this.spanId,
-      scorerName: score.scorerName,
-      score: score.score,
-      reason: score.reason,
-      experiment: score.experiment,
-      metadata: {
-        ...this.data.metadata,
-        ...score.metadata,
-      },
-    };
+The legacy hook system (`createOnScorerHook` in `packages/core/src/mastra/hooks.ts` → per-exporter `addScoreToTrace()`) will be **removed** and replaced by this unified flow.
 
-    const event: ScoreEvent = { type: 'score', score: exportedScore };
-    this.bus.emit(event);
-  }
+### Implications
 
-  addFeedback(feedback: FeedbackInput): void {
-    const exportedFeedback: ExportedFeedback = {
-      timestamp: new Date(),
-      traceId: this.traceId,
-      spanId: this.spanId,
-      source: feedback.source,
-      feedbackType: feedback.feedbackType,
-      value: feedback.value,
-      comment: feedback.comment,
-      experiment: feedback.experiment,
-      metadata: {
-        ...this.data.metadata,
-        userId: feedback.userId,
-        ...feedback.metadata,
-      },
-    };
-
-    const event: FeedbackEvent = { type: 'feedback', feedback: exportedFeedback };
-    this.bus.emit(event);
-  }
-}
-```
-
-**Notes:**
-- The span's `metadata` already contains context (organizationId, userId, environment, etc.)
-- We merge with score/feedback-specific metadata to preserve any additional fields
-
-**Tasks:**
-- [ ] Implement `addScore()` on SpanImpl
-- [ ] Implement `addFeedback()` on SpanImpl
-- [ ] Use span's existing metadata (already has context)
-- [ ] Emit ScoreEvent/FeedbackEvent via ObservabilityBus
+- ~~Section 3.4.1 (Update Span Implementation)~~ — **REMOVED**: No addScore/addFeedback on live SpanImpl
+- ~~Section 3.4.2 (Update NoOp Span)~~ — **REMOVED**: No addScore/addFeedback on NoOp span
+- Sections 3.4.3–3.4.5 (RecordedTrace/RecordedSpan) — **moved to Phase 6** (needs storage)
+- Section 3.4.6 (DefaultExporter handlers) — **moved to Phase 6**
+- Section 3.4.8 (CloudExporter handlers) — **moved to Phase 7**
+- Legacy hook removal — **new task for Phase 6+7**
 
 ---
 
-## 3.4.2 Update NoOp Span
+## ~~3.4.1 Update Span Implementation~~ — REMOVED
 
-**File:** `observability/mastra/src/spans/no-op.ts` (modify)
-
-```typescript
-export const noOpSpan: Span = {
-  // Existing no-op implementations...
-
-  addScore(score: ScoreInput): void {
-    // No-op
-  },
-
-  addFeedback(feedback: FeedbackInput): void {
-    // No-op
-  },
-};
-```
-
-**Tasks:**
-- [ ] Add no-op `addScore()` and `addFeedback()`
+> **No longer needed.** Scoring is post-hoc only. Live spans do not have addScore/addFeedback.
 
 ---
 
-## 3.4.3 Implement RecordedTrace Class
+## ~~3.4.2 Update NoOp Span~~ — REMOVED
+
+> **No longer needed.** Scoring is post-hoc only.
+
+---
+
+## 3.4.3 Implement RecordedTrace Class — MOVED TO PHASE 6
 
 **File:** `observability/mastra/src/traces/recorded-trace.ts` (new)
 

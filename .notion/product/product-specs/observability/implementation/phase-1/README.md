@@ -1,8 +1,8 @@
 # Phase 1: Foundation
 
-**Status:** Planning
+**Status:** DONE
 **Prerequisites:** None
-**Estimated Scope:** Core infrastructure for unified observability
+**Scope:** Core infrastructure for unified observability
 
 ---
 
@@ -106,16 +106,19 @@ const mastra = new Mastra({
 
 ## Definition of Done
 
-- [ ] All PRs merged
-- [ ] Type architecture defined (Input/Exported/Record for all signals)
-- [ ] All contexts have `tracing`, `logger`, `metrics` (with no-ops)
-- [ ] ObservabilityBus implemented and wired
-- [ ] BaseExporter implements `onTracingEvent()` (existing exporters work via inheritance)
-- [ ] Unified ObservabilityConfig on Mastra
-- [ ] SessionId support in TracingOptions and propagation
-- [ ] Top-level `logger` config deprecated with warning
-- [ ] Existing tests pass
-- [ ] New tests for all added functionality
+- [x] All PRs merged
+- [x] Type architecture defined (Input/Exported/Record for all signals)
+- [x] All contexts have `tracing`, `logger`, `metrics` (with no-ops)
+- [x] ObservabilityBus implemented and wired (routes all 5 event types)
+- [x] BaseExporter implements `onTracingEvent()` (existing exporters work via inheritance)
+- [x] Unified ObservabilityConfig on Mastra
+- [x] SessionId support in TracingOptions and propagation
+- [x] Top-level `logger` config deprecated with warning
+- [x] Existing tests pass
+- [x] New tests for all added functionality
+- [x] Proxy-based context propagation (wrapMastra, wrapAgent, wrapWorkflow)
+- [x] Sampling strategies (Always/Never/Ratio/Custom)
+- [x] Serialization options
 
 ---
 

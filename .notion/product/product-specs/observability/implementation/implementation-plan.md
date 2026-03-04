@@ -1,7 +1,8 @@
 # Observability Implementation Plan
 
 **Date:** 2026-02-05
-**Status:** Draft - Ready for Implementation
+**Updated:** 2026-03-04
+**Status:** In Progress
 
 ---
 
@@ -95,9 +96,8 @@ interface RecordedTrace {
 interface Span<TType> extends BaseSpan<TType> {
   end(): void;
   createChildSpan(): Span;
-  addScore(score: ScoreInput): void;
-  addFeedback(feedback: FeedbackInput): void;
   // ... other lifecycle methods
+  // NOTE: No addScore/addFeedback — scoring is always post-hoc via RecordedSpan
 }
 
 // Data: Shared serializable base (no methods, no circular refs)
@@ -121,6 +121,12 @@ interface RecordedSpan<TType> extends SpanData<TType> {
 // Record: Storage format
 interface SpanRecord { ... }
 ```
+
+> **Design decision (2026-03-04):** Scoring is always post-hoc. Live spans do NOT have `addScore`/`addFeedback`. Instead:
+> 1. Execution completes → spans persisted to storage
+> 2. Eval system pulls `RecordedTrace` from storage → calls `addScore()` → emits `ScoreEvent` through bus → persists to storage
+> 3. API path: `POST /api/scores` → also emits `ScoreEvent` through bus → persists to storage
+> 4. The legacy hook system (`createOnScorerHook` / per-exporter `addScoreToTrace()`) will be **removed** and replaced by this unified flow.
 
 **Logs:**
 ```typescript
@@ -385,80 +391,93 @@ interface ObservabilityConfig {
 
 ## Implementation Phases
 
-### Phase 1: Foundation
+### Phase 1: Foundation — DONE
 Core infrastructure - event bus, context injection, type definitions, configuration.
 
-- [ ] Type architecture: Input, Exported, Record types for all signals
-- [ ] ObservabilityEventBus interface and base implementation
-- [ ] ObservabilityBus with type-based routing to handlers
-- [ ] Exporter interface with signal handlers
-- [ ] BaseExporter: `onTracingEvent()` delegates to existing `exportTracingEvent()`
-- [ ] No-op LoggerContext and MetricsContext implementations
-- [ ] Context mixin (`tracing`, `logger`, `metrics` on all contexts)
-- [ ] Backward compat: `tracingContext` alias
-- [ ] Unified ObservabilityConfig on Mastra
+- [x] Type architecture: Input, Exported, Record types for all signals
+- [x] ObservabilityEventBus interface and base implementation
+- [x] ObservabilityBus with type-based routing to handlers (routes all 5 event types)
+- [x] Exporter interface with signal handlers
+- [x] BaseExporter: `onTracingEvent()` delegates to existing `exportTracingEvent()`
+- [x] No-op LoggerContext and MetricsContext implementations
+- [x] Context mixin (`tracing`, `logger`, `metrics` on all contexts)
+- [x] Backward compat: `tracingContext` alias
+- [x] Unified ObservabilityConfig on Mastra
+- [x] Proxy-based context propagation (`wrapMastra`, `wrapAgent`, `wrapWorkflow`)
+- [x] Sampling strategies (Always/Never/Ratio/Custom)
+- [x] Serialization options (maxStringLength, maxDepth, maxArrayLength, maxObjectKeys)
 
-### Phase 2: Debug Exporters
+### Phase 2: Debug Exporters — PARTIALLY DONE
 Build exporters for ALL signals early to validate interfaces and provide developer visibility.
 
-- [ ] JsonExporter: handlers for T/M/L/S/F (console output)
-- [ ] GrafanaCloudExporter: handlers for T/M/L/S/F (Tempo/Loki/Mimir)
-- [ ] Validate Exported type serialization works correctly
-- [ ] `RecordedTrace.fromJSON()` / `RecordedTrace.fromSpans()` factory methods for round-tripping
+- [x] TestExporter: handlers for T/M/L/S/F _(renamed from "JsonExporter" — it collects events in memory for testing, doesn't export JSON)_
+- [ ] ~~GrafanaCloudExporter: handlers for T/M/L/S/F (Tempo/Loki/Mimir)~~ **POSTPONED**
+- [x] Validate Exported type serialization works correctly
+- [ ] ~~`RecordedTrace.fromJSON()` / `RecordedTrace.fromSpans()` factory methods for round-tripping~~ **CANCELED** — RecordedTrace will be built from storage instead
 
-### Phase 3: Logging, Metrics & Scores/Feedback
-All signal context implementations in `@mastra/observability` - no exporter work (Phase 2 exporters already handle events).
+### Phase 3: Logging, Metrics & Scores/Feedback — PARTIALLY DONE
+All signal context implementations in `@mastra/observability`.
 
-**PR 3.1: Logging**
-- [ ] LoggerContext implementation with auto-correlation
-- [ ] `mastra.logger` direct API (outside trace context)
-- [ ] LogEvent emission to ObservabilityBus
-- [ ] Exporter updates for LogEvent
+**PR 3.1: Logging — DONE**
+- [x] LoggerContext implementation with auto-correlation (traceId/spanId)
+- [x] `mastra.logger` direct API (outside trace context)
+- [x] LogEvent emission to ObservabilityBus
+- [ ] Exporter handlers for LogEvent — _only TestExporter handles logs; no other exporter does yet_
 
-**PR 3.2: Metrics Context**
-- [ ] MetricsContext implementation with auto-labels
-- [ ] `mastra.metrics` direct API (outside trace context)
-- [ ] Cardinality protection (blocked labels, UUID detection)
-- [ ] MetricEvent emission to ObservabilityBus
-- [ ] Exporter updates for MetricEvent
+**PR 3.2: Metrics Context — DONE**
+- [x] MetricsContext implementation with auto-labels
+- [x] `mastra.metrics` direct API (outside trace context)
+- [x] Cardinality protection (blocked labels, UUID detection)
+- [x] MetricEvent emission to ObservabilityBus
+- [ ] Exporter handlers for MetricEvent — _only TestExporter handles metrics; no other exporter does yet_
 
-**PR 3.3: Auto-Extracted Metrics**
-- [ ] TracingEvent → MetricEvent cross-emission (auto-extracted metrics)
-- [ ] Token usage metrics from MODEL_GENERATION spans
-- [ ] Duration metrics from span lifecycle
+**PR 3.3: Auto-Extracted Metrics — DONE (tracing only)**
+- [x] TracingEvent → MetricEvent cross-emission (auto-extracted metrics)
+- [x] Token usage metrics from MODEL_GENERATION spans
+- [x] Duration metrics from span lifecycle
+- [x] Started/ended counters for agent, tool, workflow, model spans
 
-**PR 3.4: Scores & Feedback**
-- [ ] `span.addScore()` / `span.addFeedback()` APIs
-- [ ] `trace.addScore()` / `trace.addFeedback()` APIs
-- [ ] `mastra.getTrace(traceId)` for post-hoc attachment
-- [ ] RecordedSpanImpl and RecordedTraceImpl classes (tree + flat access)
-- [ ] Tree structure with parent/children references
-- [ ] ScoreEvent / FeedbackEvent emission to ObservabilityBus
-- [ ] Exporter updates for ScoreEvent/FeedbackEvent
+**PR 3.4: Scores & Feedback — MOVED TO PHASE 6+7**
+- [x] ScoreInput/FeedbackInput types defined
+- [x] ScoreEvent/FeedbackEvent types defined and bus routes them
+- [ ] RecordedSpanImpl and RecordedTraceImpl classes — **moved to Phase 6** (needs storage)
+- [ ] `RecordedSpan.addScore()` / `addFeedback()` — **moved to Phase 6** (post-hoc only, no live span scoring)
+- [ ] `RecordedTrace.addScore()` / `addFeedback()` — **moved to Phase 6**
+- [ ] `mastra.getTrace(traceId)` — **moved to Phase 7** (needs storage + API)
+- [ ] `POST /api/scores` / `POST /api/feedback` — **moved to Phase 7**
+- [ ] Remove legacy hook system (`createOnScorerHook` / per-exporter `addScoreToTrace()`)
+- [ ] DefaultExporter handlers for ScoreEvent/FeedbackEvent — **moved to Phase 6**
 
-**PR 3.5: Score/Feedback Metrics**
-- [ ] ScoreEvent → MetricEvent cross-emission (`mastra_scores_total`)
-- [ ] FeedbackEvent → MetricEvent cross-emission (`mastra_feedback_total`)
+> **Design decision (2026-03-04):** Scoring is always post-hoc via `RecordedSpan`/`RecordedTrace` pulled from storage. Live spans do NOT have `addScore`/`addFeedback`. The legacy hook-based scorer system (`createOnScorerHook` → `exporter.addScoreToTrace()`) will be removed and replaced by this unified flow where all scores/feedback emit through the ObservabilityBus.
 
-### Phase 4: Stores & DefaultExporter
-Storage adapters and the DefaultExporter that writes to storage.
+**PR 3.5: Score/Feedback Auto-Extracted Metrics — DONE**
+- [x] ScoreEvent → MetricEvent cross-emission (`mastra_scores_total`)
+- [x] FeedbackEvent → MetricEvent cross-emission (`mastra_feedback_total`)
 
-- [ ] DefaultExporter: Exported → Record conversion, writes to storage
-- [ ] DuckDB adapter: spans, logs, metrics, scores, feedback tables
-- [ ] ClickHouse adapter: spans, logs, metrics, scores, feedback tables
+### Phase 6: Storage & DefaultExporter — NOT STARTED (UP NEXT)
+Storage interfaces, DefaultExporter signal handlers, and storage adapters.
+
+> **Updated approach (2026-03-04):** Storage interfaces, server APIs (Phase 7), and client SDK will be developed **simultaneously**, initially targeting **memory storage only**. Storage adapter implementations (DuckDB, ClickHouse, etc.) will follow as a separate effort.
+
+- [ ] Storage operation schemas (Zod) for logs, metrics, scores, feedback
+- [ ] DefaultExporter: add onLogEvent, onMetricEvent, onScoreEvent, onFeedbackEvent handlers
+- [ ] Memory storage adapter for all signals (for initial development/testing)
+- [ ] DuckDB adapter: logs, metrics, scores, feedback tables _(deferred — after memory storage works)_
+- [ ] ClickHouse adapter: logs, metrics, scores, feedback tables _(deferred — after memory storage works)_
 - [ ] Storage strategy getters for each signal
 - [ ] Batch write optimizations
-- [ ] Record types (LogRecord, MetricRecord, ScoreRecord, FeedbackRecord) as Zod schemas
 
-### Phase 5: Server & Client APIs
+### Phase 7: Server & Client APIs — NOT STARTED (UP NEXT, parallel with Phase 6)
 HTTP APIs and client SDK for accessing stored data.
+
+> **Updated approach (2026-03-04):** Being developed **simultaneously** with Phase 6 storage work, using memory storage.
 
 - [ ] Server routes for traces, logs, metrics, scores, feedback
 - [ ] client-js SDK updates
 - [ ] CloudExporter (writes to Mastra Cloud API)
 
-### Phase 6: Third-Party Exporters
-Expand third-party integrations to support additional signals.
+### Phase 8: Third-Party Exporters — NOT STARTED
+Expand third-party integrations to support additional signals. Can start after Phase 6.
 
 - [ ] OtelExporter: logs, metrics support
 - [ ] LangfuseExporter: logs, scores, feedback support
@@ -468,7 +487,7 @@ Expand third-party integrations to support additional signals.
 - [ ] ArizeExporter: traces, scores support
 - [ ] Other exporters: audit and expand
 
-### Phase 7: MomentExporter
+### Phase 9: MomentExporter — NOT STARTED
 Internal event store for advanced use cases.
 
 - [ ] Moment schema (event store approach)
@@ -480,26 +499,28 @@ Internal event store for advanced use cases.
 ## Phase Dependencies
 
 ```
-Phase 1 (Foundation)
+Phase 1 (Foundation)                    ✅ DONE
     ↓
-Phase 2 (Debug Exporters) ← validates interfaces early
+Phase 2 (Debug Exporters)               ✅ PARTIALLY DONE (TestExporter done; GrafanaCloud postponed)
     ↓
-Phase 3 (Logging, Metrics, Scores/Feedback)
-    │   PR 3.1 → PR 3.2 → PR 3.3 → PR 3.4 → PR 3.5
+Phase 3 (Logging, Metrics, S/F)         ✅ PARTIALLY DONE (3.1-3.3, 3.5 done; 3.4 partial)
     ↓
-Phase 4 (Stores & DefaultExporter)
+Phase 6 (Storage) ──────────┐
+    │                       │           ← UP NEXT (simultaneous, memory storage first)
+Phase 7 (Server & Client) ──┘
     ↓
-Phase 5 (Server & Client) ← depends on storage
+Storage Adapters (DuckDB, ClickHouse)   ← after memory storage works
     ↓
-Phase 6 (3rd-Party Exporters) ← can start after Phase 2
+Phase 8 (3rd-Party Exporters)           ← can start after Phase 6
     ↓
-Phase 7 (MomentExporter)
+Phase 9 (MomentExporter)
 ```
 
 **Notes:**
-- Phase 3 PRs are sequential: 3.1 → 3.2 → 3.3 → 3.4 → 3.5
-- Phase 6 (3rd-party exporters) can start after Phase 2 (just need Exported types)
-- Phase 4, 5, 7 must be sequential
+- Phase 6 (storage) and Phase 7 (server/client) will be developed simultaneously using memory storage
+- Storage adapter implementations (DuckDB, ClickHouse) follow after memory storage is working
+- Phase 8 (3rd-party exporters) can start after Phase 6 (just need storage interfaces)
+- addScore/addFeedback on live spans (PR 3.4) should be completed alongside Phase 6 storage work
 
 ## Changeset Strategy
 
@@ -570,15 +591,15 @@ Auto-extracted from span lifecycle events (Phase 4).
 
 ## Detailed Phase Documents
 
-| Phase | Document | Scope |
-|-------|----------|-------|
-| Phase 1 | [phase-1/](./phase-1/) | Foundation, event bus, config |
-| Phase 2 | [phase-2/](./phase-2/) | Debug exporters (Json, GrafanaCloud) |
-| Phase 3 | [phase-3/](./phase-3/) | Logging, Metrics, Scores/Feedback |
-| Phase 4 | [phase-4/](./phase-4/) | Stores & DefaultExporter |
-| Phase 5 | [phase-5/](./phase-5/) | Server & client-js |
-| Phase 6 | [phase-6/](./phase-6/) | Third-party exporters |
-| Phase 7 | [phase-7/](./phase-7/) | MomentExporter |
+| Phase | Document | Scope | Status |
+|-------|----------|-------|--------|
+| Phase 1 | [phase-1/](./phase-1/) | Foundation, event bus, config | **Done** |
+| Phase 2 | [phase-2/](./phase-2/) | Debug exporters (TestExporter) | **Partial** |
+| Phase 3 | [phase-3/](./phase-3/) | Logging, Metrics, Scores/Feedback | **Partial** |
+| Phase 6 | [phase-6/](./phase-6/) | Storage & DefaultExporter | Not started |
+| Phase 7 | [phase-7/](./phase-7/) | Server & client-js | Not started |
+| Phase 8 | [phase-8/](./phase-8/) | Third-party exporters | Not started |
+| Phase 9 | [phase-9/](./phase-9/) | MomentExporter | Not started |
 
 ---
 
@@ -586,6 +607,11 @@ Auto-extracted from span lifecycle events (Phase 4).
 
 - [ ] Verify scores table alignment with existing evals scores schema
 - [ ] Revisit table name `mastra_ai_trace_feedback`
-- [ ] Reference existing NoOp tracing implementation
+- [x] ~~Reference existing NoOp tracing implementation~~ — NoOp span detection implemented
 - [x] ~~Decide on changeset strategy (per-PR or per-phase)~~ → **Per-PR**
 - [ ] Create migration guide for deprecated `tracingContext`
+- [ ] Implement addScore/addFeedback on RecordedSpan/RecordedTrace (post-hoc only — Phase 6)
+- [ ] Remove legacy hook system (`createOnScorerHook` / `addScoreToTrace()`) — Phase 6+7
+- [ ] Remove addScore/addFeedback from live Span interface in @mastra/core
+- [ ] Spec memory storage adapter (PR 6.M — new, not yet spec'd)
+- [ ] Implement RecordedSpan/RecordedTrace from storage (replaces canceled JSON round-trip)

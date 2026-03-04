@@ -1,29 +1,33 @@
-# Phase 6: Stores & DefaultExporter
+# Phase 6: Storage & DefaultExporter
 
-**Status:** Planning
-**Prerequisites:** Phase 1-5 (all signal implementations complete)
-**Estimated Scope:** Storage adapters for all signals, DefaultExporter
+**Status:** NOT STARTED — UP NEXT
+**Prerequisites:** Phase 1 ✅, Phase 3 (partially) ✅
+**Scope:** Storage interfaces, DefaultExporter signal handlers, storage adapters
 
 ---
 
 ## Overview
 
 Phase 6 implements storage for all observability signals:
-- DefaultExporter that converts Exported → Record types and writes to storage
-- DuckDB adapter for local development (all signals)
-- ClickHouse adapter for production (all signals)
-- Storage strategy implementations
+- DefaultExporter signal handlers (logs, metrics, scores, feedback — tracing already done)
+- Storage operation schemas and interfaces
+- Memory storage adapter (initial target for development/testing)
+- DuckDB adapter for local development (deferred — after memory storage works)
+- ClickHouse adapter for production (deferred — after memory storage works)
+
+> **Updated approach (2026-03-04):** This phase will be developed **simultaneously** with Phase 7 (Server & Client APIs). Initial implementation will use **memory storage** to get the full pipeline working end-to-end. Storage adapter implementations (DuckDB, ClickHouse) will follow as a separate effort once the interfaces and APIs are stable.
 
 ---
 
 ## Package Change Strategy
 
-| PR | Package | Scope | File |
-|----|---------|-------|------|
-| PR 6.0 | `packages/core` | Storage operation schemas for all signals | [pr-6.0-storage-schemas.md](./pr-6.0-storage-schemas.md) |
-| PR 6.1 | `@mastra/observability` | DefaultExporter implementation | [pr-6.1-default-exporter.md](./pr-6.1-default-exporter.md) |
-| PR 6.2 | `stores/duckdb` | Spans, logs, metrics, scores, feedback tables | pr-6.2-duckdb-*.md |
-| PR 6.3 | `stores/clickhouse` | Spans, logs, metrics, scores, feedback tables | pr-6.3-clickhouse-*.md |
+| PR | Package | Scope | File | Priority |
+|----|---------|-------|------|----------|
+| PR 6.0 | `packages/core` | Storage operation schemas for all signals | [pr-6.0-storage-schemas.md](./pr-6.0-storage-schemas.md) | **Now** |
+| PR 6.1 | `@mastra/observability` | DefaultExporter signal handlers | [pr-6.1-default-exporter.md](./pr-6.1-default-exporter.md) | **Now** |
+| PR 6.M | `packages/core` or `stores/memory` | Memory storage adapter (all signals) | _New — not yet spec'd_ | **Now** |
+| PR 6.2 | `stores/duckdb` | Spans, logs, metrics, scores, feedback tables | pr-6.2-duckdb-*.md | Deferred |
+| PR 6.3 | `stores/clickhouse` | Spans, logs, metrics, scores, feedback tables | pr-6.3-clickhouse-*.md | Deferred |
 
 ---
 
@@ -32,11 +36,18 @@ Phase 6 implements storage for all observability signals:
 ```
 PR 6.0 (Storage Schemas) ← defines types for storage operations
     ↓
-PR 6.1 (DefaultExporter) ← uses schemas for Exported → Record conversion
+PR 6.1 (DefaultExporter) ← adds onLogEvent, onMetricEvent, onScoreEvent, onFeedbackEvent
+PR 6.M (Memory Storage)  ← implements storage interface in memory (can parallel with 6.1)
     ↓
-PR 6.2 (DuckDB) ← implements storage interface
-PR 6.3 (ClickHouse) ← implements storage interface (can run in parallel with 6.2)
+Phase 7 (Server & Client APIs) ← simultaneous development
+    ↓
+PR 6.2 (DuckDB) ← deferred until interfaces are stable
+PR 6.3 (ClickHouse) ← deferred until interfaces are stable (can parallel with 6.2)
 ```
+
+> **Note:** The DefaultExporter already handles tracing events with production-ready batching, buffering, and retry logic. The work here is adding handlers for the remaining 4 signals (logs, metrics, scores, feedback).
+
+> **Note (2026-03-04):** RecordedSpanImpl, RecordedTraceImpl, and the post-hoc scoring flow (from PR 3.4) are now part of this phase. Scoring is post-hoc only — the eval system and API create scores by pulling traces from storage. The legacy hook system (`createOnScorerHook` / `addScoreToTrace()`) will be removed.
 
 ---
 
@@ -99,9 +110,19 @@ export class DefaultExporter implements ObservabilityExporter {
 
 ## Definition of Done
 
-- [ ] DefaultExporter converts and writes all signal types
+**Immediate (memory storage):**
+- [ ] Storage operation schemas (Zod) for logs, metrics, scores, feedback
+- [ ] DefaultExporter handles all 5 signal types (T/M/L/S/F)
+- [ ] Memory storage adapter implements all signal storage operations
+- [ ] RecordedSpanImpl and RecordedTraceImpl classes (from PR 3.4, needs storage)
+- [ ] RecordedSpan.addScore() / addFeedback() — post-hoc scoring via bus (from PR 3.4)
+- [ ] Remove legacy hook system (`createOnScorerHook` / per-exporter `addScoreToTrace()`)
+- [ ] End-to-end pipeline working: signal emission → bus → DefaultExporter → memory storage
+- [ ] End-to-end scoring: pull RecordedTrace from storage → addScore() → ScoreEvent → bus → storage
+- [ ] All tests pass
+
+**Deferred (storage adapters):**
 - [ ] DuckDB adapter supports all signals with appropriate schemas
 - [ ] ClickHouse adapter supports all signals with appropriate schemas
 - [ ] Batch write optimizations implemented
 - [ ] Storage strategy getters return appropriate values
-- [ ] All tests pass
