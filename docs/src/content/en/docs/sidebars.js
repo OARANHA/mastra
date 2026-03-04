@@ -303,14 +303,6 @@ const sidebars = {
         },
         {
           type: 'doc',
-          id: 'workspace/processes',
-          label: 'Background Processes',
-          customProps: {
-            tags: ['new'],
-          },
-        },
-        {
-          type: 'doc',
           id: 'workspace/skills',
           label: 'Skills',
         },
