@@ -123,7 +123,7 @@ function Agent() {
           <WorkingMemoryProvider agentId={agentId!} threadId={actualThreadId!} resourceId={effectiveResourceId}>
             <ThreadInputProvider>
               <ObservationalMemoryProvider>
-                <LoadedSkillsProvider>
+                <LoadedSkillsProvider key={`${agentId}-${actualThreadId}`}>
                   <AgentLayout
                     agentId={agentId!}
                     leftSlot={
