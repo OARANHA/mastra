@@ -1,5 +1,22 @@
 # @mastra/memory
 
+## 1.6.1-alpha.0
+
+### Patch Changes
+
+- Improved confidence in observational memory threshold behavior through expanded automated test coverage. No public API changes. ([#13785](https://github.com/mastra-ai/mastra/pull/13785))
+
+- Improved Observational Memory reliability: fixed future-date annotations producing invalid strings, fixed a duplicate inline-date matching bug, and hardened the process-level operation registry against concurrent operation tracking errors. ([#13774](https://github.com/mastra-ai/mastra/pull/13774))
+
+- Fixed buffered activation cleanup to respect the configured retention floor so message history does not collapse unexpectedly after activation. ([#13745](https://github.com/mastra-ai/mastra/pull/13745))
+
+- Repeated token counts in OM are faster and more reliable, estimates are now persisted on metadata, and totals remain consistent after saving and loading conversations. ([#13745](https://github.com/mastra-ai/mastra/pull/13745))
+
+- Improved observational memory marker creation consistency for more reliable debugging and UI status behavior. No public API changes. ([#13779](https://github.com/mastra-ai/mastra/pull/13779))
+
+- Updated dependencies [[`41e48c1`](https://github.com/mastra-ai/mastra/commit/41e48c198eee846478e60c02ec432c19d322a517), [`82469d3`](https://github.com/mastra-ai/mastra/commit/82469d3135d5a49dd8dc8feec0ff398b4e0225a0), [`7ef6e2c`](https://github.com/mastra-ai/mastra/commit/7ef6e2c61be5a42e26f55d15b5902866fc76634f), [`b12d2a5`](https://github.com/mastra-ai/mastra/commit/b12d2a59a48be0477cabae66eb6cf0fc94a7d40d), [`b12d2a5`](https://github.com/mastra-ai/mastra/commit/b12d2a59a48be0477cabae66eb6cf0fc94a7d40d), [`f51849a`](https://github.com/mastra-ai/mastra/commit/f51849a568935122b5100b7ee69704e6d680cf7b), [`cafa045`](https://github.com/mastra-ai/mastra/commit/cafa0453c9de141ad50c09a13894622dffdd9978), [`1fd9ddb`](https://github.com/mastra-ai/mastra/commit/1fd9ddbb3fe83b281b12bd2e27e426ae86288266), [`6135ef4`](https://github.com/mastra-ai/mastra/commit/6135ef4f5288652bf45f616ec590607e4c95f443), [`6135ef4`](https://github.com/mastra-ai/mastra/commit/6135ef4f5288652bf45f616ec590607e4c95f443)]:
+  - @mastra/core@1.10.0-alpha.0
+
 ## 1.6.0
 
 ### Minor Changes

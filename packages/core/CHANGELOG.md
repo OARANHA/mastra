@@ -1,5 +1,60 @@
 # @mastra/core
 
+## 1.10.0-alpha.0
+
+### Minor Changes
+
+- Added `editor` shorthand to `MastraCompositeStore` for routing all editor-related domains (agents, prompt blocks, scorer definitions, MCP clients, MCP servers, workspaces, skills) to a single storage backend. Priority: `domains` > `editor` > `default`. ([#13727](https://github.com/mastra-ai/mastra/pull/13727))
+
+  ```typescript
+  import { MastraCompositeStore } from '@mastra/core/storage';
+
+  new MastraCompositeStore({
+    id: 'composite',
+    default: postgresStore,
+    editor: filesystemStore,
+  });
+  ```
+
+  Improved code-agent editing so editor overrides can be applied and reverted without losing original dynamic values for fields like instructions, model, and tools.
+
+- Added `FilesystemStore`, a file-based storage adapter for editor domains. Stores agent configurations, prompt blocks, scorer definitions, MCP clients, MCP servers, workspaces, and skills as JSON files in a local directory (default: `.mastra-storage/`). Only published snapshots are written to disk — version history is kept in memory. Use with `MastraCompositeStore`'s `editor` shorthand to enable Git-friendly editor configurations. ([#13727](https://github.com/mastra-ai/mastra/pull/13727))
+
+  ```typescript
+  import { FilesystemStore, MastraCompositeStore } from '@mastra/core/storage';
+  import { PostgresStore } from '@mastra/pg';
+
+  export const mastra = new Mastra({
+    storage: new MastraCompositeStore({
+      id: 'composite',
+      default: new PostgresStore({ id: 'pg', connectionString: process.env.DATABASE_URL }),
+      editor: new FilesystemStore({ dir: '.mastra-storage' }),
+    }),
+  });
+  ```
+
+  Added `applyStoredOverrides` to the editor agent namespace. When a stored configuration exists for a code-defined agent, the editor merges the stored **instructions** and **tools** on top of the code agent's values at runtime. Model, memory, workspace, and other code-defined fields are never overridden — they may contain SDK instances or dynamic functions that cannot be safely serialized. Original code-defined values are preserved via a WeakMap and restored if the stored override is deleted.
+
+### Patch Changes
+
+- dependencies updates: ([#13209](https://github.com/mastra-ai/mastra/pull/13209))
+  - Updated dependency [`p-map@^7.0.4` ↗︎](https://www.npmjs.com/package/p-map/v/7.0.4) (from `^7.0.3`, in `dependencies`)
+
+- dependencies updates: ([#13210](https://github.com/mastra-ai/mastra/pull/13210))
+  - Updated dependency [`p-retry@^7.1.1` ↗︎](https://www.npmjs.com/package/p-retry/v/7.1.1) (from `^7.1.0`, in `dependencies`)
+
+- Fixed execute_command tool timeout parameter to accept seconds instead of milliseconds, preventing agents from accidentally setting extremely short timeouts ([#13799](https://github.com/mastra-ai/mastra/pull/13799))
+
+- Fixed onIterationComplete feedback being discarded when it returns `{ continue: false }` — feedback is now added to the conversation and the model gets one final turn to produce a text response before the loop stops. ([#13759](https://github.com/mastra-ai/mastra/pull/13759))
+
+- Remove the default maxSteps limit so stopWhen can control sub-agent execution ([#13764](https://github.com/mastra-ai/mastra/pull/13764))
+
+- Fix suspendedToolRunId required error when it shouldn't be required ([#13722](https://github.com/mastra-ai/mastra/pull/13722))
+
+- Fixed subagent tool defaulting maxSteps to 50 when no stop condition is configured, preventing unbounded execution loops. When stopWhen is set, maxSteps is left to the caller. ([#13777](https://github.com/mastra-ai/mastra/pull/13777))
+
+- Fixed subagent tool to default maxSteps to 50 when no stopWhen condition is configured, preventing unbounded agent loops. When stopWhen is set, maxSteps remains unset so the stop condition controls termination. ([#13777](https://github.com/mastra-ai/mastra/pull/13777))
+
 ## 1.9.0
 
 ### Minor Changes

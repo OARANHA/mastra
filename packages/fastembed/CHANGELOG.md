@@ -1,5 +1,11 @@
 # @mastra/fastembed
 
+## 1.0.1-alpha.0
+
+### Patch Changes
+
+- Add `warmup()` export to pre-download fastembed models without creating ONNX sessions. This prevents concurrent download race conditions when multiple consumers call `FlagEmbedding.init()` in parallel, which could corrupt the model archive and cause `Z_BUF_ERROR`. ([#13752](https://github.com/mastra-ai/mastra/pull/13752))
+
 ## 1.0.0
 
 ### Major Changes
