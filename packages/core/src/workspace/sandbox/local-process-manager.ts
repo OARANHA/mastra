@@ -5,13 +5,14 @@
  * Tracks processes in-memory since there's no server to query.
  */
 
-import { execa } from 'execa';
-import type { ResultPromise, Options as ExecaOptions } from 'execa';
+import type { execa as execaType, ResultPromise, Options as ExecaOptions } from 'execa';
 
 import type { LocalSandbox } from './local-sandbox';
 import { ProcessHandle, SandboxProcessManager } from './process-manager';
 import type { ProcessInfo, SpawnProcessOptions } from './process-manager';
 import type { CommandResult } from './types';
+
+let _execa: typeof execaType | undefined;
 
 // =============================================================================
 // Local Process Handle
@@ -158,7 +159,17 @@ export class LocalProcessManager extends SandboxProcessManager<LocalSandbox> {
       extendEnv: false,
     };
 
-    const subprocess = execa(wrapped.command, wrapped.args, execaOptions);
+    // Dynamic import with runtime-constructed specifier to prevent bundlers
+    // (Vite/Rollup/esbuild) from resolving execa at build time.
+    // This is necessary for Cloudflare Workers compatibility where execa's
+    // transitive deps use Node-only conditional exports.
+    if (!_execa) {
+      const mod = 'execa';
+      _execa = (await import(/* webpackIgnore: true */ mod)).execa;
+    }
+    const execaFn = _execa!;
+
+    const subprocess = execaFn(wrapped.command, wrapped.args, execaOptions);
 
     // execa sets pid synchronously when the process spawns successfully.
     // If pid is undefined, the spawn failed (bad cwd, missing command, etc.).
