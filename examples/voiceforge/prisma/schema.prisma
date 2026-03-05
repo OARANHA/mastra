@@ -1,0 +1,99 @@
+// prisma/schema.prisma
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+model Clinic {
+  id           String         @id @default(cuid())
+  name         String
+  phone        String         @unique
+  betaEnabled  Boolean        @default(false)
+  onboardedAt  DateTime?
+  config       Json?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  conversations Conversation[]
+  events        Event[]
+
+  @@map("clinics")
+}
+
+model Conversation {
+  id           String    @id @default(cuid())
+  clinicId     String
+  clinic       Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  patientPhone String
+  patientName  String?
+  channel      String
+  status       String
+  score        Int      @default(50)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  messages     Message[]
+  appointments Appointment[]
+
+  @@index([clinicId, status])
+  @@index([patientPhone])
+  @@unique([clinicId, patientPhone])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role      String
+  content   String  @db.Text
+  metadata  Json?
+  embedding Unsupported("vector(1536)")?
+
+  createdAt DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model Appointment {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  datetime    DateTime
+  service     String
+  status      String
+  convenio    String?
+  value       Float?
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([conversationId])
+  @@index([datetime])
+  @@map("appointments")
+}
+
+model Event {
+  id       String   @id @default(cuid())
+  clinicId String
+  clinic   Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  type     String
+  metadata Json
+
+  createdAt DateTime @default(now())
+
+  @@index([clinicId, type, createdAt])
+  @@map("events")
+}
