@@ -1,67 +1,95 @@
-'use client';
+'use client'
 
-import { TrendingUp, TrendingDown, MessageSquare, Phone, DollarSign, Clock } from 'lucide-react';
+import useSWR from 'swr'
 
-const metrics = [
-  {
-    label: 'Leads Hoje',
-    value: '47',
-    change: '+12%',
-    trend: 'up',
-    icon: MessageSquare,
-    color: 'from-blue-500 to-cyan-600',
-  },
-  {
-    label: 'Agendamentos',
-    value: '23',
-    change: '+18%',
-    trend: 'up',
-    icon: Phone,
-    color: 'from-green-500 to-emerald-600',
-  },
-  {
-    label: 'Receita Gerada',
-    value: 'R$ 1.240',
-    change: '+24%',
-    trend: 'up',
-    icon: DollarSign,
-    color: 'from-purple-500 to-pink-600',
-  },
-  {
-    label: 'Tempo Médio',
-    value: '1.2min',
-    change: '-8%',
-    trend: 'down',
-    icon: Clock,
-    color: 'from-orange-500 to-red-600',
-  },
-];
+const fetcher = (url: string) => fetch(url).then(r => r.json())
 
-export function MetricsCards() {
-  return (
-    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-      {metrics.map((metric, index) => (
-        <div
-          key={index}
-          className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-purple-500/50 transition-colors"
-        >
-          <div className="flex items-start justify-between mb-4">
-            <div className={`w-12 h-12 rounded-lg bg-gradient-to-br ${metric.color} flex items-center justify-center`}>
-              <metric.icon className="w-6 h-6 text-white" />
-            </div>
-            <div className={`flex items-center gap-1 text-sm font-medium ${
-              metric.trend === 'up' ? 'text-green-400' : 'text-red-400'
-            }`}>
-              {metric.trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-              {metric.change}
-            </div>
-          </div>
-          <div>
-            <p className="text-sm text-gray-400 mb-1">{metric.label}</p>
-            <p className="text-3xl font-bold text-white">{metric.value}</p>
-          </div>
+interface MetricsData {
+  conversations?: { current: number; previous: number; growth: number }
+  appointments?: { current: number; previous: number; growth: number }
+  roi?: { revenue: number; multiple: number }
+  avgResponseTime?: number
+  isLoading?: boolean
+  error?: any
+}
+
+export function MetricsCards({ clinicId = 'test-clinic-1' }: { clinicId?: string }) {
+  const { data, error, isLoading } = useSWR(
+    `/api/dashboard/metrics?clinicId=${clinicId}&period=week`,
+    fetcher,
+    { refreshInterval: 30000 }
+  )
+
+  if (error) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="col-span-4 text-center text-red-600 p-4">
+          ❌ Erro ao carregar dados do dashboard
         </div>
-      ))}
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="bg-white rounded-lg shadow p-6 animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+            <div className="h-8 bg-gray-200 rounded w-16 mb-2"></div>
+            <div className="h-3 bg-gray-200 rounded w-20"></div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  const metrics: MetricsData = data || {}
+  const conversations = metrics.conversations?.current || 0
+  const appointments = metrics.appointments?.current || 0
+  const roi = metrics.roi?.multiple || 0
+  const responseTime = metrics.avgResponseTime || 0
+
+  const growthColor = (growth: number) => growth >= 0 ? 'text-green-600' : 'text-red-600'
+  const growthIcon = (growth: number) => growth >= 0 ? '📈' : '📉'
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Conversas */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="text-sm text-gray-600 mb-2">Conversas (7 dias)</div>
+        <div className="text-3xl font-bold text-gray-900 mb-2">{conversations}</div>
+        <div className={`text-sm ${growthColor(metrics.conversations?.growth || 0)}`}>
+          {growthIcon(metrics.conversations?.growth || 0)} {metrics.conversations?.growth || 0}% vs período anterior
+        </div>
+      </div>
+
+      {/* Agendamentos */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="text-sm text-gray-600 mb-2">Agendamentos</div>
+        <div className="text-3xl font-bold text-gray-900 mb-2">{appointments}</div>
+        <div className={`text-sm ${growthColor(metrics.appointments?.growth || 0)}`}>
+          {growthIcon(metrics.appointments?.growth || 0)} {metrics.appointments?.growth || 0}% vs período anterior
+        </div>
+      </div>
+
+      {/* ROI */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="text-sm text-gray-600 mb-2">ROI</div>
+        <div className="text-3xl font-bold text-green-600 mb-2">{roi.toFixed(2)}x</div>
+        <div className="text-sm text-gray-600">
+          R$ {metrics.roi?.revenue || 0} de receita
+        </div>
+      </div>
+
+      {/* Tempo de Resposta */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="text-sm text-gray-600 mb-2">Tempo Médio</div>
+        <div className="text-3xl font-bold text-blue-600 mb-2">{responseTime}s</div>
+        <div className="text-sm text-gray-600">
+          Resposta por mensagem
+        </div>
+      </div>
     </div>
-  );
+  )
 }

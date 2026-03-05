@@ -1,44 +1,59 @@
-'use client';
+'use client'
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import useSWR from 'swr'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-const data = [
-  { time: '00:00', conversations: 12 },
-  { time: '04:00', conversations: 8 },
-  { time: '08:00', conversations: 45 },
-  { time: '12:00', conversations: 67 },
-  { time: '16:00', conversations: 89 },
-  { time: '20:00', conversations: 54 },
-  { time: '23:59', conversations: 23 },
-];
+const fetcher = (url: string) => fetch(url).then(r => r.json())
 
-export function ConversationsChart() {
+export function ConversationsChart({ clinicId = 'test-clinic-1' }: { clinicId?: string }) {
+  const { data, error, isLoading } = useSWR(
+    `/api/dashboard/daily?clinicId=${clinicId}&days=7`,
+    fetcher,
+    { refreshInterval: 60000 }
+  )
+
+  if (error) {
+    return <div className="text-center text-red-600 p-4">❌ Erro ao carregar gráfico</div>
+  }
+
+  if (isLoading) {
+    return (
+      <div className="h-64 bg-gray-100 rounded-lg animate-pulse flex items-center justify-center">
+        <span className="text-gray-400">Carregando gráfico...</span>
+      </div>
+    )
+  }
+
+  const chartData = data?.daily || []
+
+  if (!chartData || chartData.length === 0) {
+    return (
+      <div className="h-64 bg-gray-50 rounded-lg flex items-center justify-center">
+        <span className="text-gray-500">Sem dados disponíveis</span>
+      </div>
+    )
+  }
+
   return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-      <h3 className="text-xl font-semibold text-white mb-6">Conversas por Horário</h3>
-      <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-          <XAxis dataKey="time" stroke="#9CA3AF" />
-          <YAxis stroke="#9CA3AF" />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: '#1F2937',
-              border: '1px solid #374151',
-              borderRadius: '8px',
-              color: '#fff',
-            }}
-          />
-          <Line
-            type="monotone"
-            dataKey="conversations"
-            stroke="#8B5CF6"
-            strokeWidth={3}
-            dot={{ fill: '#8B5CF6', r: 4 }}
-            activeDot={{ r: 6 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Conversas por Dia (Últimos 7 dias)</h3>
+      <div className="h-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="date" />
+            <YAxis />
+            <Tooltip />
+            <Line 
+              type="monotone" 
+              dataKey="conversations" 
+              stroke="#2563eb" 
+              strokeWidth={2}
+              name="Conversas"
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
-  );
+  )
 }
